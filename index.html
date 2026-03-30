@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Running Tracker">
+<title>Running Tracker</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f3; color: #1a1a1a; padding: 1rem; }
+@media (prefers-color-scheme: dark) {
+  body { background: #1a1a1a; color: #f0f0ee; }
+  .big-clock, .stat-card, .map-stat { background: #2a2a2a; border-color: #3a3a3a; }
+  .voice-box, .km-row { background: #222; border-color: #3a3a3a; }
+  .vtog { background: #222; border-color: #3a3a3a; color: #aaa; }
+  .btn { background: #222; border-color: #3a3a3a; color: #f0f0ee; }
+  .btn:hover:not(:disabled) { background: #2a2a2a; }
+  select { background: #222; color: #f0f0ee; border-color: #3a3a3a; }
+  .last-said, .avg-row { background: #2a2a2a; }
+  .km-bar-wrap { background: #333; }
+  .tabs { background: #222; border-color: #3a3a3a; }
+  .tab { background: #222; color: #aaa; border-color: #3a3a3a; }
+  .tab.active { background: #2a2a2a; color: #f0f0ee; }
+  #map-canvas { background: #2a2a2a; border-color: #3a3a3a; }
+  .export-btn { background: #222; border-color: #3a3a3a; color: #f0f0ee; }
+  .export-btn:hover { background: #2a2a2a; }
+  .export-btn.blue { border-color: #378ADD; color: #85B7EB; }
+  .export-btn.blue:hover { background: #0C447C33; }
+}
+#app { max-width: 520px; margin: 0 auto; padding-bottom: 2rem; }
+.header { text-align: center; margin-bottom: 1.25rem; }
+.header h1 { font-size: 22px; font-weight: 500; }
+.header p { font-size: 13px; color: #888; margin-top: 4px; }
+.tabs { display: flex; border: 0.5px solid #ccc; border-radius: 8px; overflow: hidden; margin-bottom: 1rem; }
+.tab { flex: 1; padding: 9px; font-size: 13px; font-weight: 500; text-align: center; cursor: pointer; color: #888; background: #fff; border: none; transition: all 0.15s; }
+.tab.active { background: #ececea; color: #1a1a1a; }
+.tab:not(:last-child) { border-right: 0.5px solid #ccc; }
+.panel { display: none; }
+.panel.active { display: block; }
+.big-clock { text-align: center; padding: 1.25rem 1rem; background: #ececea; border-radius: 12px; border: 0.5px solid #ddd; margin-bottom: 1rem; }
+.clock-time { font-size: 48px; font-weight: 500; letter-spacing: -2px; font-variant-numeric: tabular-nums; line-height: 1; }
+.clock-label { font-size: 11px; color: #888; margin-top: 5px; text-transform: uppercase; letter-spacing: 1px; }
+.stats-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-bottom: 1rem; }
+.stat-card { background: #ececea; border-radius: 8px; padding: 12px 8px; text-align: center; }
+.stat-val { font-size: 19px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.stat-lbl { font-size: 11px; color: #888; margin-top: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+.voice-box { background: #fff; border: 0.5px solid #ccc; border-radius: 12px; padding: 12px 14px; margin-bottom: 1rem; }
+.voice-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.voice-row:last-child { margin-bottom: 0; }
+.voice-lbl { font-size: 12px; color: #888; min-width: 100px; }
+.vtog-group { display: flex; gap: 5px; flex: 1; }
+.vtog { flex: 1; padding: 6px 0; border-radius: 8px; border: 0.5px solid #ccc; background: #fff; font-size: 12px; color: #888; cursor: pointer; text-align: center; transition: all 0.15s; }
+.vtog.active { background: #1D9E75; color: #E1F5EE; border-color: #0F6E56; font-weight: 500; }
+select { font-size: 12px; padding: 6px 8px; border-radius: 8px; border: 0.5px solid #ccc; background: #fff; flex: 1; cursor: pointer; }
+.last-said { font-size: 12px; color: #888; padding: 7px 12px; background: #ececea; border-radius: 8px; margin-bottom: 1rem; min-height: 32px; display: flex; align-items: center; gap: 8px; }
+.speak-dot { width: 7px; height: 7px; border-radius: 50%; background: #ccc; flex-shrink: 0; }
+.speak-dot.on { background: #1D9E75; animation: pulse 0.8s infinite; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+.btn-row { display: flex; gap: 8px; margin-bottom: 1rem; }
+.btn { flex: 1; padding: 13px; border-radius: 8px; border: 0.5px solid #ccc; background: #fff; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.15s, transform 0.1s; }
+.btn:active { transform: scale(0.98); }
+.btn:hover:not(:disabled) { background: #ececea; }
+.btn.go { background: #1D9E75; color: #E1F5EE; border-color: #0F6E56; }
+.btn.go:hover:not(:disabled) { background: #0F6E56; }
+.btn.red { background: #D85A30; color: #FAECE7; border-color: #993C1D; }
+.btn.red:hover:not(:disabled) { background: #993C1D; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.sec-lbl { font-size: 12px; font-weight: 500; color: #888; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 7px; }
+.km-list { display: flex; flex-direction: column; gap: 5px; max-height: 220px; overflow-y: auto; }
+.km-row { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: #fff; border: 0.5px solid #e0e0de; border-radius: 8px; }
+.km-num { font-size: 12px; font-weight: 500; color: #888; min-width: 26px; }
+.km-pace { font-size: 14px; font-weight: 500; flex: 1; font-variant-numeric: tabular-nums; }
+.km-bar-wrap { width: 70px; height: 5px; background: #ececea; border-radius: 3px; overflow: hidden; }
+.km-bar { height: 100%; border-radius: 3px; }
+.km-time-lbl { font-size: 11px; color: #888; min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+.best-b { font-size: 10px; padding: 1px 5px; border-radius: 8px; background: #E1F5EE; color: #0F6E56; margin-left: 4px; }
+.worst-b { font-size: 10px; padding: 1px 5px; border-radius: 8px; background: #FAECE7; color: #993C1D; margin-left: 4px; }
+.avg-row { display: flex; justify-content: space-between; padding: 9px 12px; background: #ececea; border-radius: 8px; margin-top: 7px; font-size: 13px; }
+.avg-row span:last-child { font-weight: 500; font-variant-numeric: tabular-nums; }
+.empty-msg { text-align: center; padding: 1.25rem; color: #888; font-size: 13px; }
+.status-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #888; margin-bottom: 0.75rem; }
+.gps-dot { width: 7px; height: 7px; border-radius: 50%; background: #ccc; flex-shrink: 0; }
+.gps-dot.on { background: #1D9E75; animation: pulse 1.2s infinite; }
+#map-canvas { width: 100%; height: 340px; border-radius: 12px; border: 0.5px solid #ddd; background: #ececea; display: block; }
+.map-info { display: flex; gap: 8px; margin-top: 8px; margin-bottom: 1rem; }
+.map-stat { flex: 1; background: #ececea; border-radius: 8px; padding: 10px; text-align: center; }
+.map-stat-val { font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.map-stat-lbl { font-size: 11px; color: #888; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+.export-row { display: flex; gap: 8px; margin-top: 1rem; }
+.export-btn { flex: 1; padding: 10px; border-radius: 8px; border: 0.5px solid #ccc; background: #fff; cursor: pointer; font-size: 13px; font-weight: 500; text-align: center; transition: background 0.15s; }
+.export-btn:hover { background: #ececea; }
+.export-btn.blue { border-color: #185FA5; color: #185FA5; }
+.export-btn.blue:hover { background: #E6F1FB; }
+.no-track { text-align: center; padding: 3rem 1rem; color: #888; font-size: 13px; }
+.gps-note { font-size: 12px; color: #D85A30; padding: 8px 12px; background: #FAECE7; border-radius: 8px; margin-bottom: 10px; display: none; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <h1>🏃 Running Tracker</h1>
+    <p>GPS · Voz · Track de ruta</p>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('run')">Correr</div>
+    <div class="tab" onclick="showTab('map')">Mapa</div>
+    <div class="tab" onclick="showTab('splits')">Splits</div>
+  </div>
+
+  <div id="tab-run" class="panel active">
+    <div class="status-bar">
+      <span class="gps-dot" id="gps-dot"></span>
+      <span id="gps-status">GPS desactivado</span>
+    </div>
+    <div id="gps-note" class="gps-note">Sin GPS — usando simulación demo. Activa la ubicación para datos reales.</div>
+    <div class="big-clock">
+      <div class="clock-time" id="clock">00:00:00</div>
+      <div class="clock-label">Tiempo de carrera</div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-val" id="dist">0.00</div><div class="stat-lbl">km</div></div>
+      <div class="stat-card"><div class="stat-val" id="pace">--:--</div><div class="stat-lbl">Ritmo /km</div></div>
+      <div class="stat-card"><div class="stat-val" id="speed">0.0</div><div class="stat-lbl">km/h</div></div>
+    </div>
+    <div class="voice-box">
+      <div class="voice-row">
+        <span class="voice-lbl">Avisos de voz</span>
+        <div class="vtog-group">
+          <div class="vtog active" id="vtog-on" onclick="setVoice(true)">Activados</div>
+          <div class="vtog" id="vtog-off" onclick="setVoice(false)">Silencio</div>
+        </div>
+      </div>
+      <div class="voice-row">
+        <span class="voice-lbl">Avisar cada</span>
+        <div class="vtog-group">
+          <div class="vtog active" id="freq-1" onclick="setFreq(1)">1 km</div>
+          <div class="vtog" id="freq-half" onclick="setFreq(0.5)">500 m</div>
+          <div class="vtog" id="freq-5" onclick="setFreq(5)">5 min</div>
+        </div>
+      </div>
+      <div class="voice-row">
+        <span class="voice-lbl">Idioma</span>
+        <select id="lang-sel" onchange="changeLang()">
+          <option value="es-ES">Español</option>
+          <option value="en-US">English</option>
+          <option value="ca-ES">Català</option>
+          <option value="fr-FR">Français</option>
+          <option value="de-DE">Deutsch</option>
+        </select>
+      </div>
+    </div>
+    <div class="last-said">
+      <span class="speak-dot" id="speak-dot"></span>
+      <span id="last-said-text">La voz dirá el ritmo al completar cada kilómetro</span>
+    </div>
+    <div class="btn-row">
+      <button class="btn go" id="btn-start" onclick="startRun()">▶ Iniciar</button>
+      <button class="btn" id="btn-pause" onclick="pauseRun()" disabled>⏸ Pausar</button>
+      <button class="btn red" id="btn-stop" onclick="stopRun()" disabled>■ Parar</button>
+    </div>
+  </div>
+
+  <div id="tab-map" class="panel">
+    <canvas id="map-canvas"></canvas>
+    <div class="map-info">
+      <div class="map-stat"><div class="map-stat-val" id="map-dist">0.00</div><div class="map-stat-lbl">km totales</div></div>
+      <div class="map-stat"><div class="map-stat-val" id="map-pts">0</div><div class="map-stat-lbl">puntos GPS</div></div>
+      <div class="map-stat"><div class="map-stat-val" id="map-elev">--</div><div class="map-stat-lbl">alt. actual</div></div>
+    </div>
+    <div id="no-track" class="no-track">Inicia una carrera para ver el track aquí</div>
+    <div id="export-row" class="export-row" style="display:none">
+      <div class="export-btn blue" onclick="exportGPX()">↓ Exportar GPX</div>
+      <div class="export-btn" onclick="exportCSV()">↓ Exportar CSV</div>
+    </div>
+  </div>
+
+  <div id="tab-splits" class="panel">
+    <div class="sec-lbl">Kilómetros completados</div>
+    <div class="km-list" id="km-list">
+      <div class="empty-msg" id="km-empty">Aún no has completado ningún kilómetro</div>
+    </div>
+    <div id="avg-section" style="display:none">
+      <div class="avg-row"><span>Ritmo medio</span><span id="avg-pace">--:--</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let running=false,paused=false,startTime=0,pauseOffset=0,pauseStart=0;
+let timerInterval=null,watchId=null,simInterval=null;
+let positions=[],trackPoints=[],totalDist=0,kmSplits=[];
+let kmStartTime=0,currentSpeed=0,lastPaceSec=0;
+let useSimulation=false,simLastUpdate=0;
+let voiceEnabled=true,freqMode=1,selectedLang='es-ES';
+let lastVoiceDistKm=0,lastVoiceTimeSec=0;
+let synth=window.speechSynthesis,voices=[];
+let currentAlt=null;
+
+function loadVoices(){voices=synth.getVoices();if(!voices.length)setTimeout(loadVoices,300);}
+loadVoices();
+if(synth.onvoiceschanged!==undefined)synth.onvoiceschanged=loadVoices;
+
+function getBestVoice(lang){const code=lang.split('-')[0];return voices.find(v=>v.lang===lang)||voices.find(v=>v.lang.startsWith(code))||voices[0]||null;}
+
+function speak(text){
+  if(!voiceEnabled||!synth)return;
+  synth.cancel();
+  const utt=new SpeechSynthesisUtterance(text);
+  utt.lang=selectedLang;utt.rate=0.95;utt.pitch=1;
+  const v=getBestVoice(selectedLang);if(v)utt.voice=v;
+  utt.onstart=()=>document.getElementById('speak-dot').classList.add('on');
+  utt.onend=()=>document.getElementById('speak-dot').classList.remove('on');
+  document.getElementById('last-said-text').textContent=text;
+  synth.speak(utt);
+}
+
+const msgs={
+  'es-ES':(km,pace,spd)=>`Kilómetro ${km}. Ritmo ${pace} por kilómetro. Velocidad ${spd} kilómetros por hora.`,
+  'en-US':(km,pace,spd)=>`Kilometer ${km}. Pace ${pace} per kilometer. Speed ${spd} kilometers per hour.`,
+  'ca-ES':(km,pace,spd)=>`Quilòmetre ${km}. Ritme ${pace} per quilòmetre. Velocitat ${spd} quilòmetres per hora.`,
+  'fr-FR':(km,pace,spd)=>`Kilomètre ${km}. Allure ${pace} par kilomètre. Vitesse ${spd} kilomètres heure.`,
+  'de-DE':(km,pace,spd)=>`Kilometer ${km}. Tempo ${pace} pro Kilometer. Geschwindigkeit ${spd} Kilometer pro Stunde.`,
+};
+const periodicMsgs={
+  'es-ES':(d,p)=>`Llevas ${d} kilómetros. Ritmo actual ${p} por kilómetro.`,
+  'en-US':(d,p)=>`You've run ${d} kilometers. Current pace ${p} per kilometer.`,
+  'ca-ES':(d,p)=>`Portes ${d} quilòmetres. Ritme actual ${p} per quilòmetre.`,
+  'fr-FR':(d,p)=>`Vous avez couru ${d} kilomètres. Allure actuelle ${p} par kilomètre.`,
+  'de-DE':(d,p)=>`Sie haben ${d} Kilometer gelaufen. Aktuelles Tempo ${p} pro Kilometer.`,
+};
+
+function fmtSpoken(sec){
+  const m=Math.floor(sec/60),s=Math.floor(sec%60);
+  if(selectedLang.startsWith('es')||selectedLang.startsWith('ca'))return`${m} minutos y ${s} segundos`;
+  if(selectedLang.startsWith('fr'))return`${m} minutes ${s} secondes`;
+  if(selectedLang.startsWith('de'))return`${m} Minuten ${s} Sekunden`;
+  return`${m} minutes ${s} seconds`;
+}
+
+function setVoice(on){voiceEnabled=on;document.getElementById('vtog-on').classList.toggle('active',on);document.getElementById('vtog-off').classList.toggle('active',!on);}
+function setFreq(f){freqMode=f;['1','half','5'].forEach(k=>document.getElementById('freq-'+k).classList.remove('active'));document.getElementById('freq-'+(f===1?'1':f===0.5?'half':'5')).classList.add('active');}
+function changeLang(){selectedLang=document.getElementById('lang-sel').value;}
+function showTab(t){document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',['run','map','splits'][i]===t));document.querySelectorAll('.panel').forEach(el=>el.classList.remove('active'));document.getElementById('tab-'+t).classList.add('active');if(t==='map')drawMap();}
+
+function haversine(a,b){const R=6371000,dLat=(b.lat-a.lat)*Math.PI/180,dLon=(b.lon-a.lon)*Math.PI/180,s=Math.sin(dLat/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLon/2)**2;return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));}
+function fmtTime(ms){const t=Math.floor(ms/1000),h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=t%60;return[h,m,s].map(v=>String(v).padStart(2,'0')).join(':');}
+function fmtPace(sec){if(!isFinite(sec)||sec<=0||sec>9999)return'--:--';return`${Math.floor(sec/60)}:${String(Math.floor(sec%60)).padStart(2,'0')}`;}
+function elapsed(){if(!running&&!paused)return 0;if(paused)return pauseStart-startTime-pauseOffset;return Date.now()-startTime-pauseOffset;}
+function updateClock(){document.getElementById('clock').textContent=fmtTime(elapsed());}
+
+function addPosition(lat,lon,ts,alt){
+  if(alt!=null)currentAlt=Math.round(alt);
+  if(positions.length>0){
+    const prev=positions[positions.length-1];
+    const d=haversine(prev,{lat,lon});
+    const dt=(ts-prev.ts)/1000;
+    if(d>1&&dt>0){
+      totalDist+=d;
+      const spd=(d/dt)*3.6;
+      currentSpeed=Math.max(0,Math.min(30,spd));
+      const paceSec=1000/(d/dt);
+      lastPaceSec=paceSec;
+      document.getElementById('speed').textContent=currentSpeed.toFixed(1);
+      document.getElementById('pace').textContent=fmtPace(paceSec);
+      document.getElementById('dist').textContent=(totalDist/1000).toFixed(2);
+      document.getElementById('map-dist').textContent=(totalDist/1000).toFixed(2);
+      document.getElementById('map-pts').textContent=trackPoints.length;
+      document.getElementById('map-elev').textContent=currentAlt!=null?currentAlt+'m':'--';
+      const distKm=totalDist/1000;
+      const elapsedSec=elapsed()/1000;
+      if(freqMode===1||freqMode===0.5){
+        const thr=freqMode,crossed=Math.floor(distKm/thr),prevC=Math.floor(lastVoiceDistKm/thr);
+        if(crossed>prevC){
+          const label=freqMode===1?Math.floor(distKm):(Math.floor(distKm/0.5)*0.5).toFixed(1);
+          const msg=(msgs[selectedLang]||msgs['es-ES'])(label,fmtSpoken(paceSec),currentSpeed.toFixed(1));
+          setTimeout(()=>speak(msg),300);
+          lastVoiceDistKm=distKm;
+          if(freqMode===1){const splitSec=elapsedSec-kmStartTime;kmSplits.push({km:Math.floor(distKm),splitSec});kmStartTime=elapsedSec;renderSplits();}
+        }
+      }
+      if(freqMode===5){const mins=elapsedSec/60,crossed=Math.floor(mins/5),prevC=Math.floor(lastVoiceTimeSec/60/5);if(crossed>prevC&&elapsedSec>10){const msg=(periodicMsgs[selectedLang]||periodicMsgs['es-ES'])(distKm.toFixed(2),fmtSpoken(paceSec));setTimeout(()=>speak(msg),300);lastVoiceTimeSec=elapsedSec;}}
+    }
+  }
+  positions.push({lat,lon,ts});
+  trackPoints.push({lat,lon,ts,alt:alt||null});
+}
+
+function drawMap(){
+  const canvas=document.getElementById('map-canvas');
+  const ctx=canvas.getContext('2d');
+  const W=canvas.offsetWidth||480,H=340;
+  canvas.width=W;canvas.height=H;
+  const isDark=window.matchMedia('(prefers-color-scheme: dark)').matches;
+  ctx.fillStyle=isDark?'#2a2a2a':'#f0f0ee';
+  ctx.fillRect(0,0,W,H);
+  const noTrack=document.getElementById('no-track');
+  const exportRow=document.getElementById('export-row');
+  if(trackPoints.length<2){noTrack.style.display='';exportRow.style.display='none';ctx.fillStyle=isDark?'#555':'#aaa';ctx.font='14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('Sin track disponible',W/2,H/2);return;}
+  noTrack.style.display='none';exportRow.style.display='';
+  const pad=36;
+  const lats=trackPoints.map(p=>p.lat),lons=trackPoints.map(p=>p.lon);
+  const minLat=Math.min(...lats),maxLat=Math.max(...lats),minLon=Math.min(...lons),maxLon=Math.max(...lons);
+  const latRange=maxLat-minLat||0.001,lonRange=maxLon-minLon||0.001;
+  const scale=Math.min((W-pad*2)/lonRange,(H-pad*2)/latRange);
+  const offX=(W-(lonRange*scale))/2,offY=(H-(latRange*scale))/2;
+  function toXY(lat,lon){return{x:offX+(lon-minLon)*scale,y:H-offY-(lat-minLat)*scale};}
+  ctx.strokeStyle=isDark?'#5DCAA5':'#0F6E56';
+  ctx.lineWidth=3;ctx.lineJoin='round';ctx.lineCap='round';
+  ctx.beginPath();
+  const p0=toXY(trackPoints[0].lat,trackPoints[0].lon);
+  ctx.moveTo(p0.x,p0.y);
+  for(let i=1;i<trackPoints.length;i++){const p=toXY(trackPoints[i].lat,trackPoints[i].lon);ctx.lineTo(p.x,p.y);}
+  ctx.stroke();
+  const ps=toXY(trackPoints[0].lat,trackPoints[0].lon);
+  ctx.fillStyle='#1D9E75';ctx.beginPath();ctx.arc(ps.x,ps.y,8,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#fff';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('S',ps.x,ps.y);
+  if(trackPoints.length>1){
+    const pe=toXY(trackPoints[trackPoints.length-1].lat,trackPoints[trackPoints.length-1].lon);
+    ctx.fillStyle=running?'#378ADD':'#D85A30';ctx.beginPath();ctx.arc(pe.x,pe.y,8,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff';ctx.fillText(running?'●':'F',pe.x,pe.y);
+  }
+  kmSplits.forEach(k=>{
+    const idx=Math.min(Math.round((k.km/((totalDist/1000)||1))*trackPoints.length),trackPoints.length-1);
+    if(idx<0)return;
+    const pp=toXY(trackPoints[idx].lat,trackPoints[idx].lon);
+    ctx.fillStyle=isDark?'#FAC775':'#854F0B';
+    ctx.beginPath();ctx.arc(pp.x,pp.y,5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=isDark?'#FAC775':'#633806';
+    ctx.font='10px sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
+    ctx.fillText(k.km+'km',pp.x,pp.y-7);
+  });
+}
+
+function renderSplits(){
+  const list=document.getElementById('km-list'),empty=document.getElementById('km-empty'),avgSec=document.getElementById('avg-section');
+  if(kmSplits.length===0){empty.style.display='';avgSec.style.display='none';return;}
+  empty.style.display='none';avgSec.style.display='';
+  const paces=kmSplits.map(k=>k.splitSec);
+  const best=Math.min(...paces),worst=Math.max(...paces),avg=paces.reduce((a,b)=>a+b,0)/paces.length;
+  document.getElementById('avg-pace').textContent=fmtPace(avg)+' /km';
+  const minP=best*0.9,maxP=worst*1.1;
+  list.innerHTML='';
+  kmSplits.forEach(k=>{
+    const div=document.createElement('div');div.className='km-row';
+    const pct=Math.round(100-(k.splitSec-minP)/(maxP-minP)*60);
+    const bc=k.splitSec===best?'#1D9E75':k.splitSec===worst?'#D85A30':'#378ADD';
+    const badge=kmSplits.length>1&&k.splitSec===best?'<span class="best-b">mejor</span>':kmSplits.length>1&&k.splitSec===worst?'<span class="worst-b">más lento</span>':'';
+    div.innerHTML=`<span class="km-num">km ${k.km}</span><span class="km-pace">${fmtPace(k.splitSec)}/km${badge}</span><div class="km-bar-wrap"><div class="km-bar" style="width:${Math.max(10,pct)}%;background:${bc}"></div></div><span class="km-time-lbl">${fmtPace(k.splitSec)}</span>`;
+    list.appendChild(div);
+  });
+}
+
+function startRun(){
+  running=true;paused=false;startTime=Date.now();pauseOffset=0;
+  totalDist=0;positions=[];trackPoints=[];kmSplits=[];kmStartTime=0;
+  lastVoiceDistKm=0;lastVoiceTimeSec=0;currentAlt=null;
+  document.getElementById('btn-start').disabled=true;
+  document.getElementById('btn-pause').disabled=false;
+  document.getElementById('btn-stop').disabled=false;
+  document.getElementById('dist').textContent='0.00';document.getElementById('speed').textContent='0.0';document.getElementById('pace').textContent='--:--';
+  document.getElementById('map-dist').textContent='0.00';document.getElementById('map-pts').textContent='0';document.getElementById('map-elev').textContent='--';
+  renderSplits();
+  timerInterval=setInterval(updateClock,500);
+  const sm={'es-ES':'¡Carrera iniciada! ¡Ánimo!','en-US':'Run started! Good luck!','ca-ES':'Cursa iniciada! Ànim!','fr-FR':'Course démarrée! Bonne chance!','de-DE':'Lauf gestartet! Viel Erfolg!'};
+  setTimeout(()=>speak(sm[selectedLang]||sm['es-ES']),500);
+  if(!navigator.geolocation){startSimMode();return;}
+  watchId=navigator.geolocation.watchPosition(pos=>{
+    document.getElementById('gps-dot').classList.add('on');
+    document.getElementById('gps-status').textContent='GPS activo';
+    addPosition(pos.coords.latitude,pos.coords.longitude,pos.timestamp,pos.coords.altitude);
+  },()=>startSimMode(),{enableHighAccuracy:true,maximumAge:2000,timeout:8000});
+  setTimeout(()=>{if(positions.length===0)startSimMode();},8000);
+}
+
+function startSimMode(){
+  if(useSimulation)return;useSimulation=true;
+  document.getElementById('gps-note').style.display='';
+  document.getElementById('gps-dot').classList.add('on');
+  document.getElementById('gps-status').textContent='Modo demo (sin GPS)';
+  let lat=38.93+(Math.random()-0.5)*0.01,lon=-0.12+(Math.random()-0.5)*0.01,dir=Math.random()*2*Math.PI,alt=50;
+  simLastUpdate=Date.now();
+  simInterval=setInterval(()=>{
+    if(!running||paused)return;
+    const now=Date.now(),dt=(now-simLastUpdate)/1000;simLastUpdate=now;
+    dir+=(Math.random()-0.5)*0.3;
+    const speedMs=(3+Math.random()*3)/3.6;
+    lat+=(speedMs*dt/111111)*Math.cos(dir);
+    lon+=(speedMs*dt/(111111*Math.cos(lat*Math.PI/180)))*Math.sin(dir);
+    alt+=Math.round((Math.random()-0.5)*2);
+    addPosition(lat,lon,now,alt);
+  },1000);
+}
+
+function pauseRun(){
+  if(paused){
+    paused=false;running=true;pauseOffset+=Date.now()-pauseStart;
+    document.getElementById('btn-pause').textContent='⏸ Pausar';
+    if(useSimulation)simLastUpdate=Date.now();
+    const pm={'es-ES':'Carrera reanudada','en-US':'Run resumed','ca-ES':'Cursa represa','fr-FR':'Course reprise','de-DE':'Lauf fortgesetzt'};
+    speak(pm[selectedLang]||pm['es-ES']);
+  } else {
+    paused=true;running=false;pauseStart=Date.now();
+    document.getElementById('btn-pause').textContent='▶ Reanudar';
+    const pm={'es-ES':'Pausa','en-US':'Paused','ca-ES':'Pausa','fr-FR':'Pause','de-DE':'Pause'};
+    speak(pm[selectedLang]||pm['es-ES']);
+  }
+}
+
+function stopRun(){
+  running=false;paused=false;
+  clearInterval(timerInterval);clearInterval(simInterval);
+  if(watchId!==null)navigator.geolocation.clearWatch(watchId);
+  watchId=null;useSimulation=false;
+  document.getElementById('gps-dot').classList.remove('on');
+  document.getElementById('gps-status').textContent='GPS desactivado';
+  document.getElementById('gps-note').style.display='none';
+  document.getElementById('btn-start').disabled=false;
+  document.getElementById('btn-pause').disabled=true;
+  document.getElementById('btn-stop').disabled=true;
+  document.getElementById('btn-pause').textContent='⏸ Pausar';
+  const distKm=(totalDist/1000).toFixed(2);
+  const avg=kmSplits.length?kmSplits.reduce((a,b)=>a+b.splitSec,0)/kmSplits.length:0;
+  const em={
+    'es-ES':`Carrera terminada. Has recorrido ${distKm} kilómetros${avg>0?' con un ritmo medio de '+fmtSpoken(avg)+' por kilómetro':''}. ¡Bien hecho!`,
+    'en-US':`Run finished. You covered ${distKm} kilometers. Well done!`,
+    'ca-ES':`Cursa acabada. Has recorregut ${distKm} quilòmetres. Molt bé!`,
+    'fr-FR':`Course terminée. Vous avez parcouru ${distKm} kilomètres. Bravo!`,
+    'de-DE':`Lauf beendet. Sie haben ${distKm} Kilometer zurückgelegt. Gut gemacht!`,
+  };
+  speak(em[selectedLang]||em['es-ES']);
+  drawMap();
+}
+
+function exportGPX(){
+  if(trackPoints.length<2){alert('No hay suficientes puntos GPS para exportar.');return;}
+  const now=new Date(),dateStr=now.toISOString().slice(0,10);
+  let gpx=`<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Running Tracker" xmlns="http://www.topografix.com/GPX/1/1">\n<trk><name>Carrera ${dateStr}</name><trkseg>\n`;
+  trackPoints.forEach(p=>{
+    const t=new Date(p.ts).toISOString();
+    gpx+=`<trkpt lat="${p.lat.toFixed(7)}" lon="${p.lon.toFixed(7)}">${p.alt!=null?`<ele>${p.alt}</ele>`:''}<time>${t}</time></trkpt>\n`;
+  });
+  gpx+=`</trkseg></trk></gpx>`;
+  dl(`carrera_${dateStr}.gpx`,gpx,'application/gpx+xml');
+}
+
+function exportCSV(){
+  if(trackPoints.length<2){alert('No hay suficientes puntos GPS para exportar.');return;}
+  const now=new Date(),dateStr=now.toISOString().slice(0,10);
+  let csv='lat,lon,altitud,timestamp\n';
+  trackPoints.forEach(p=>{csv+=`${p.lat.toFixed(7)},${p.lon.toFixed(7)},${p.alt!=null?p.alt:''},${new Date(p.ts).toISOString()}\n`;});
+  dl(`carrera_${dateStr}.csv`,csv,'text/csv');
+}
+
+function dl(filename,content,type){
+  const blob=new Blob([content],{type});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
